@@ -3,7 +3,7 @@
 // Strategia: Network-First (con fallback cache per offline)
 // ============================================================
 
-const CACHE_NAME = 'camelot-v2.6.6';
+const CACHE_NAME = 'camelot-v2.6.7';
 const ASSETS = [
   '/dashboard/index.html',
   '/dashboard/style.css',

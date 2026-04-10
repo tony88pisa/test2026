@@ -6,6 +6,7 @@
 
 const API   = ''
 const TOKEN = 'dev-token-xyz'
+const IS_TUNNEL = window.location.hostname.includes('trycloudflare.com')
 
 const headers = () => ({
   'Content-Type': 'application/json',
@@ -565,18 +566,36 @@ async function sendMessage() {
   if (btnSend) btnSend.disabled = true
 
   try {
-    await fetch(`${API}/api/agent/query`, {
+    const stream = !IS_TUNNEL // PATCH M20.1: locale = streaming, tunnel = no streaming (Cloudflare buffering fix)
+
+    const res = await fetch(`${API}/api/agent/query`, {
       method:  'POST',
       headers: headers(),
       body: JSON.stringify({
         input:     finalInput,
         sessionId: state.sessionId,
         history:   state.history.slice(-10),
-        stream:    true
+        stream
       })
     })
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+      throw new Error(err.error ?? `HTTP ${res.status}`)
+    }
+
+    if (!stream) {
+      const data = await res.json()
+      finalizeMessage(data.response ?? '')
+    }
   } catch (err) {
-    finalizeMessage(`⚠️ Errore: ${err.message}`)
+    if (thinkingEl) {
+        thinkingEl.remove()
+        thinkingEl = null
+    }
+    appendMessage('ember', `⚠️ Errore connessione: ${err.message}`)
+    state.thinking = false
+    if (btnSend) btnSend.disabled = false
   }
 }
 
