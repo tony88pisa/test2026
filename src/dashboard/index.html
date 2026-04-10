@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camelot-IDE — Dashboard</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ff6b35">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/tony88pisa/test2026/main/src/dashboard/icon-192.png">
+    <link rel="stylesheet" href="style.css?v=2.6.5">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- XTerm.js -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+    <!-- Monaco Editor Loader (M21) -->
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/loader.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Sidebar: Explorer -->
+        <aside id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">CAMELOT-IDE <span style="font-weight:300; opacity:0.6;">v2.6</span></div>
+                <button id="btn-refresh-tree" title="Aggiorna Workspace"><i data-lucide="refresh-cw"></i></button>
+            </div>
+            <div id="file-tree">
+                <!-- Caricato via JS -->
+                <div class="loading-spinner">Caricamento workspace...</div>
+            </div>
+        </aside>
+
+        <!-- Main Content: Editor & Terminal -->
+        <main id="main">
+            <div id="editor-area">
+                <div class="editor-toolbar" id="editor-toolbar" style="display:none;">
+                    <div class="toolbar-left" style="display:flex; align-items:center; gap:12px;">
+                        <span id="current-filename" style="font-family:var(--font-mono); font-size:11px; color:var(--text-secondary);">Seleziona un file</span>
+                        <span class="lang-badge" id="lang-badge">Plaintext</span>
+                    </div>
+                    <div class="toolbar-right" style="display:flex; gap:10px;">
+                        <button id="btn-copy-file" title="Copia contenuto"><i data-lucide="copy" style="width:14px;"></i></button>
+                        <button id="btn-save-file" title="Salva (Ctrl+S)" style="background:var(--accent); color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:11px; display:flex; align-items:center; gap:6px;">
+                            <i data-lucide="save" style="width:14px;"></i> <b>Salva</b>
+                        </button>
+                    </div>
+                </div>
+                <div id="monaco-editor" style="flex:1; width:100%; height:100%;"></div>
+                <div id="editor-placeholder">
+                    <div style="text-align:center;">
+                        <i data-lucide="code" style="width:48px; height:48px; opacity:0.1; margin-bottom:1rem;"></i>
+                        <p>Seleziona un file dall'explorer per aprirlo.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="terminal-container">
+                <div id="terminal-header">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <i data-lucide="terminal" style="width:14px;"></i>
+                        <span>TERMINALE POWERSHELL</span>
+                    </div>
+                    <div style="display:flex; gap:12px;">
+                        <span id="term-status" style="opacity:0.5;">connessione...</span>
+                        <button id="btn-clear-term" title="Pulisci"><i data-lucide="trash-2"></i></button>
+                    </div>
+                </div>
+                <div id="terminal"></div>
+            </div>
+        </main>
+
+        <!-- Shizuku Panel: AI Chat -->
+        <section id="shizuku-panel">
+            <header id="shizuku-header">
+                <div style="position:relative;">
+                    <i data-lucide="bot" style="color:var(--accent); width:20px;"></i>
+                    <div class="status-dot online"></div>
+                </div>
+                <span id="shizuku-name">SHIZUKU</span>
+                <span id="provider-badge">OpenRouter</span>
+            </header>
+
+            <div id="shizuku-messages">
+                <div class="message ember">
+                    <div class="bubble">Bentornato, Comandante. Sono pronta ad assisterti nel tuo sviluppo.</div>
+                    <div class="meta">Ember 🔥 • Adesso</div>
+                </div>
+            </div>
+
+            <div id="shizuku-input-area">
+                <button id="btn-attach" title="Allega file"><i data-lucide="paperclip"></i></button>
+                <input type="file" id="file-upload" style="display:none;">
+                <div id="input-wrapper" style="flex:1; display:flex; flex-direction:column; background:var(--bg-tertiary); border:1px solid var(--border); border-radius:10px; overflow:hidden;">
+                    <div id="attachment-preview" style="display:none; font-size:11px; color:var(--accent); background:rgba(255,107,53,0.1); padding:6px 10px; border-bottom:1px solid var(--border); align-items:center; justify-content:space-between;">
+                        <span>📄 <b id="attachment-name">file.js</b> allegato</span>
+                        <i data-lucide="x" id="btn-remove-attachment" style="width:14px; cursor:pointer;" title="Rimuovi"></i>
+                    </div>
+                    <textarea id="shizuku-input" placeholder="Chiedi a Shizuku..." rows="1" style="border:none; border-radius:0; background:transparent; width:100%;"></textarea>
+                </div>
+                <button id="btn-send" disabled><i data-lucide="send"></i></button>
+            </div>
+        </section>
+
+        <!-- Status Bar -->
+        <footer id="status-bar">
+            <div style="display:flex; align-items:center; gap:6px;">
+                <div id="sse-indicator" class="status-dot sse-disconnected"></div>
+                <span id="sse-status">SSE: DISCONNESSO</span>
+            </div>
+            <div id="status-remote" style="font-size: 11px; opacity: 0.8; cursor: pointer;" title="Clicca per copiare l'URL pubblico">🌐 offline</div>
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span id="ollama-status" style="font-size: 11px; opacity: 0.8;" title="Stato AI Locale">⚫ Ollama</span>
+            </div>
+            <div style="flex:1;"></div>
+            <span><i data-lucide="cpu" style="width:12px; vertical-align:middle; margin-right:4px;"></i> MODELLO: <b id="model-name">qwen3.6-plus</b></span>
+            <span><i data-lucide="dollar-sign" style="width:12px; vertical-align:middle; margin-right:4px;"></i> COSTO: <b id="total-cost">$0.00</b></span>
+            <span><i data-lucide="clock" style="width:12px; vertical-align:middle; margin-right:4px;"></i> <span id="clock">00:00:00</span></span>
+        </footer>
+        <!-- Mobile Tab Bar (M22) -->
+        <div id="mobile-tabs" class="mobile-only">
+            <button class="tab-btn" data-target="sidebar">
+                <i data-lucide="folder"></i><span>Explorer</span>
+            </button>
+            <button class="tab-btn active" data-target="shizuku-panel">
+                <i data-lucide="message-square"></i><span>Chat</span>
+            </button>
+            <button class="tab-btn" data-target="terminal-container">
+                <i data-lucide="terminal"></i><span>Terminal</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="app.js?v=2.6.5"></script>
+    <script>
+        // Inizializza icone Lucide
+        lucide.createIcons();
+    </script>
+</body>
+</html>

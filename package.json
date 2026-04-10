@@ -1,0 +1,25 @@
+{
+  "name": "camelot-ide",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "bun test src/__tests__/**/*.test.ts",
+    "test:local": "CAMELOT_LOCAL=1 bun test src/__tests__/**/*.test.ts",
+    "test:watch": "bun test --watch src/__tests__/**/*.test.ts",
+    "start": "CAMELOT_LOCAL=1 bun run src/index.ts",
+    "start:tunnel": "concurrently \"bun run start\" \"bun run tunnel\"",
+    "tunnel": "cloudflared tunnel --url http://localhost:3001",
+    "build:exe": "bun build --compile --minify --icon=camelot.ico src/launcher.ts --outfile=camelot-launcher.exe"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^25.5.2",
+    "concurrently": "latest"
+  },
+  "dependencies": {
+    "axios": "^1.15.0",
+    "p-timeout": "^7.0.1",
+    "playwright": "^1.59.1",
+    "supermemory": "^4.21.1"
+  }
+}

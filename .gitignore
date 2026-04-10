@@ -1,0 +1,30 @@
+# Node / Bun
+node_modules/
+.env
+.env.*
+!.env.example
+.search-cache.json
+dist/
+*.tsbuildinfo
+
+# Continue.dev — local overrides only, config.json è versionato
+.continue/index/
+.continue/logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE (non Continue)
+.idea/
+*.swp
+*.swo
+
+# Env
+.env
+.env.local
+
+*.bun-build
+camelot-launcher.exe
+dist/
+build/

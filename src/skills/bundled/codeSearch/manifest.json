@@ -1,0 +1,10 @@
+{
+  "name": "codeSearch",
+  "version": "1.0.0",
+  "description": "Cerca pattern nel codice sorgente del workspace",
+  "author": "Camelot-IDE",
+  "commands": ["search", "findFunction", "findImport"],
+  "entrypoint": "index.ts",
+  "autoload": true,
+  "permissions": ["fs:read"]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "Camelot-IDE",
+  "short_name": "Camelot",
+  "description": "Powerful Autonomous Coding Environment",
+  "start_url": "/dashboard/index.html",
+  "display": "standalone",
+  "background_color": "#0a0a0c",
+  "theme_color": "#ff6b35",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/tony88pisa/test2026/main/src/dashboard/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

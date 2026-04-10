@@ -1,0 +1,80 @@
+{
+  "models": [
+    {
+      "title": "Gemma 3 27B — Camelot",
+      "provider": "ollama",
+      "model": "gemma4:latest",
+      "apiBase": "http://localhost:11434",
+      "contextLength": 128000,
+      "completionOptions": {
+        "temperature": 0.2,
+        "maxTokens": 8192
+      }
+    },
+    {
+      "title": "Gemma 3 4B — Camelot Fast",
+      "provider": "ollama",
+      "model": "gemma3:4b",
+      "apiBase": "http://localhost:11434",
+      "contextLength": 128000,
+      "completionOptions": {
+        "temperature": 0.1,
+        "maxTokens": 4096
+      }
+    }
+  ],
+  "tabAutocompleteModel": {
+    "title": "Gemma 3 4B — Autocomplete",
+    "provider": "ollama",
+    "model": "gemma3:4b",
+    "apiBase": "http://localhost:11434"
+  },
+  "embeddingsProvider": {
+    "provider": "ollama",
+    "model": "nomic-embed-text",
+    "apiBase": "http://localhost:11434"
+  },
+  "contextProviders": [
+    { "name": "code", "params": {} },
+    { "name": "docs", "params": {} },
+    { "name": "diff", "params": {} },
+    { "name": "terminal", "params": {} },
+    { "name": "problems", "params": {} },
+    { "name": "folder", "params": {} },
+    { "name": "codebase", "params": {} }
+  ],
+  "slashCommands": [
+    {
+      "name": "fix",
+      "description": "Analizza e correggi gli errori nel codice selezionato",
+      "prompt": "Sei un esperto TypeScript. Analizza il codice seguente, identifica tutti i bug ed errori, e proponi la versione corretta con spiegazione in italiano di ogni modifica:\n\n{{{ input }}}"
+    },
+    {
+      "name": "explain",
+      "description": "Spiega il codice selezionato in italiano",
+      "prompt": "Spiega questo codice TypeScript in italiano in modo chiaro e dettagliato. Descrivi cosa fa, perché è strutturato così, e eventuali pattern o decisioni architetturali rilevanti:\n\n{{{ input }}}"
+    },
+    {
+      "name": "refactor",
+      "description": "Refactoring del codice selezionato",
+      "prompt": "Refactora questo codice TypeScript seguendo le best practices moderne. Mantieni la stessa logica ma migliora leggibilità, performance e manutenibilità. Spiega ogni modifica in italiano:\n\n{{{ input }}}"
+    },
+    {
+      "name": "test",
+      "description": "Genera test Bun per il codice selezionato",
+      "prompt": "Scrivi test completi con bun:test per questo codice TypeScript. Usa describe/it/expect. Includi: happy path, edge cases, error cases. Commenta ogni test in italiano:\n\n{{{ input }}}"
+    },
+    {
+      "name": "camelot",
+      "description": "Agente Camelot-IDE — contesto progetto completo",
+      "prompt": "Sei l'agente Camelot-IDE. Conosci questo progetto: stack TypeScript + Bun + Ollama (Gemma locale), layer DI in query/localDeps.ts, vim engine in src/vim/, memory in src/memory/, adapter Ollama in src/adapters/. Rispondi sempre in italiano. Task: {{{ input }}}"
+    }
+  ],
+  "customCommands": [
+    {
+      "name": "commit",
+      "prompt": "Leggi il diff corrente e scrivi un messaggio di commit convenzionale in inglese (tipo: feat/fix/refactor/docs/test). Max 72 caratteri nella prima riga. Poi aggiungi 2-3 righe di dettaglio in italiano.",
+      "description": "Genera messaggio commit dal diff corrente"
+    }
+  ]
+}

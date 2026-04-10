@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏰 Camelot-IDE</title>
+    <link rel="stylesheet" href="https://unpkg.com/xterm@5.3.0/css/xterm.css">
+    <!-- Live2D Cubism 2.1 runtime (for Shizuku model) -->
+    <script src="https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js"></script>
+    <!-- PixiJS 6 (required by pixi-live2d-display) -->
+    <script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js"></script>
+    <!-- pixi-live2d-display (cubism2 bundle) -->
+    <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/cubism2.min.js"></script>
+    <style>
+        :root {
+            --bg: #1e1e2e;
+            --surface: #181825;
+            --surface2: #313244;
+            --border: #45475a;
+            --text: #cdd6f4;
+            --muted: #6c7086;
+            --accent: #89b4fa;
+            --green: #a6e3a1;
+            --purple: #cba6f7;
+            --gold: #f9e2af;
+            --red: #f38ba8;
+            --peach: #fab387;
+            --header-h: 40px;
+            --terminal-h: 200px;
+            --explorer-w: 240px;
+            --buddy-w: 320px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: var(--bg); color: var(--text);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            font-size: 13px; height: 100vh; overflow: hidden;
+            display: grid;
+            grid-template-rows: var(--header-h) 1fr var(--terminal-h);
+            grid-template-columns: var(--explorer-w) 1fr var(--buddy-w);
+            grid-template-areas:
+                "header header header"
+                "explorer editor buddy"
+                "terminal terminal buddy";
+        }
+
+        /* ─── HEADER ─── */
+        #app-header {
+            grid-area: header;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 16px; gap: 12px;
+        }
+        .header-left { display: flex; align-items: center; gap: 10px; }
+        .header-logo { font-size: 16px; font-weight: 700; letter-spacing: -0.5px; }
+        .header-status {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 11px; padding: 2px 10px; border-radius: 10px;
+            background: var(--surface2); border: 1px solid var(--border);
+        }
+        .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+        .dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+        /* ─── FILE EXPLORER ─── */
+        #file-explorer {
+            grid-area: explorer;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            display: flex; flex-direction: column;
+            overflow: hidden;
+        }
+        .explorer-header {
+            padding: 8px 12px; font-size: 11px; font-weight: 600;
+            letter-spacing: 0.8px; color: var(--muted); text-transform: uppercase;
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid var(--border); flex-shrink: 0;
+        }
+        .explorer-header button {
+            background: none; border: none; color: var(--muted); cursor: pointer;
+            font-size: 14px; padding: 2px 4px; border-radius: 4px;
+        }
+        .explorer-header button:hover { background: var(--surface2); color: var(--text); }
+        #file-tree {
+            flex: 1; overflow-y: auto; padding: 4px 0;
+            font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+            font-size: 12px;
+        }
+        .tree-item {
+            display: flex; align-items: center; gap: 4px;
+            padding: 2px 8px 2px calc(var(--depth, 0) * 16px + 8px);
+            cursor: pointer; white-space: nowrap; user-select: none;
+        }
+        .tree-item:hover { background: var(--surface2); }
+        .tree-item.selected { background: rgba(137,180,250,0.15); color: var(--accent); }
+        .tree-icon { width: 16px; text-align: center; flex-shrink: 0; font-size: 12px; }
+        .tree-label { overflow: hidden; text-overflow: ellipsis; }
+        .tree-chevron { width: 16px; text-align: center; font-size: 10px; flex-shrink: 0; transition: transform 0.15s; }
+        .tree-chevron.open { transform: rotate(90deg); }
+
+        /* ─── EDITOR ─── */
+        #editor-panel {
+            grid-area: editor;
+            display: flex; flex-direction: column;
+            background: var(--bg); overflow: hidden;
+        }
+        #editor-tabs {
+            display: flex; background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            overflow-x: auto; flex-shrink: 0; height: 35px;
+        }
+        .editor-tab {
+            display: flex; align-items: center; gap: 6px;
+            padding: 0 14px; font-size: 12px; cursor: pointer;
+            border-right: 1px solid var(--border);
+            color: var(--muted); white-space: nowrap;
+            background: var(--surface);
+        }
+        .editor-tab.active { background: var(--bg); color: var(--text); border-bottom: 2px solid var(--accent); }
+        .editor-tab .close-btn {
+            font-size: 14px; cursor: pointer; opacity: 0.5;
+            background: none; border: none; color: inherit; padding: 0;
+        }
+        .editor-tab .close-btn:hover { opacity: 1; color: var(--red); }
+        #editor-breadcrumb {
+            padding: 4px 16px; font-size: 11px; color: var(--muted);
+            background: var(--bg); border-bottom: 1px solid var(--border);
+            font-family: monospace; flex-shrink: 0;
+            display: flex; align-items: center; gap: 8px;
+        }
+        #editor-breadcrumb button {
+            background: var(--surface2); border: 1px solid var(--border);
+            color: var(--text); cursor: pointer; font-size: 11px;
+            padding: 2px 8px; border-radius: 4px;
+        }
+        #editor-breadcrumb button:hover { background: var(--accent); color: #000; }
+        #monaco-container { flex: 1; }
+        #editor-welcome {
+            flex: 1; display: flex; align-items: center; justify-content: center;
+            flex-direction: column; gap: 12px; color: var(--muted);
+        }
+        #editor-welcome .big-icon { font-size: 64px; }
+
+        /* ─── BUDDY CHAT ─── */
+        #buddy-panel {
+            grid-area: buddy;
+            background: var(--surface);
+            border-left: 1px solid var(--border);
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .buddy-panel-header {
+            padding: 10px 14px; font-size: 14px; font-weight: 600;
+            border-bottom: 1px solid var(--border); flex-shrink: 0;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .msg-bubble {
+            padding: 8px 12px; border-radius: 12px; max-width: 90%;
+            font-size: 13px; word-break: break-word; white-space: pre-wrap; line-height: 1.4;
+        }
+        #buddy-tools-running {
+            display: none; padding: 4px 12px; font-size: 11px;
+            color: var(--peach); font-family: monospace; flex-shrink: 0;
+        }
+        #buddy-context-badge {
+            display: none; padding: 4px 12px; font-size: 10px;
+            color: var(--accent); background: var(--surface2);
+            border-top: 1px solid var(--border); flex-shrink: 0;
+            font-family: monospace;
+        }
+        .msg-user { align-self: flex-end; background: var(--accent); color: #11111b; }
+        .msg-assistant { align-self: flex-start; background: var(--surface2); color: var(--text); }
+        .msg-context {
+            align-self: center; font-size: 10px; padding: 3px 10px;
+            background: rgba(137,180,250,0.1); border: 1px dashed var(--accent);
+            border-radius: 8px; color: var(--accent);
+        }
+
+        /* ─── TERMINAL ─── */
+        #terminal-panel {
+            grid-area: terminal;
+            background: #11111b;
+            border-top: 1px solid var(--border);
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .terminal-header {
+            padding: 4px 12px; font-size: 11px; color: var(--muted);
+            background: var(--surface); border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+        }
+        .terminal-header span { font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .term-btn {
+            background: var(--surface2); border: 1px solid var(--border);
+            color: var(--text); cursor: pointer; font-size: 10px;
+            padding: 2px 8px; border-radius: 4px;
+        }
+        .term-btn:hover { background: var(--accent); color: #000; }
+        #xterm-container { flex: 1; padding: 4px; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--border); }
+        /* ── EMBER PROMPT v2 ───────────────────────────────────────── */
+        @keyframes bubbleIn {
+          from { opacity:0; transform:translateY(8px) scale(.97); }
+          to   { opacity:1; transform:translateY(0)   scale(1);   }
+        }
+        @keyframes charIn {
+          to { opacity:1; transform:translateY(0); }
+        }
+        @keyframes blink {
+          50% { opacity:0; }
+        }
+        @keyframes pulseLoading {
+          0%,80%,100% { transform:scale(.6); opacity:.4; }
+          40%         { transform:scale(1);  opacity:1;  }
+        }
+
+        .ember-live-text {
+          display:none; align-items:center; gap:2px;
+          min-height:18px; padding:2px 10px;
+          font-size:11px; color:#4f98a3;
+          overflow:hidden; white-space:nowrap;
+        }
+        .ember-char {
+          display:inline-block; opacity:0;
+          transform:translateY(4px);
+          animation:charIn .1s ease forwards;
+        }
+        .ember-cursor {
+          display:inline-block; width:2px; height:13px;
+          background:#4f98a3; border-radius:1px;
+          animation:blink .9s step-end infinite;
+          vertical-align:text-bottom; margin-left:1px;
+        }
+        .ember-thinking-dots { display:inline-flex; gap:5px; align-items:center; }
+        .ember-thinking-dots span {
+          width:6px; height:6px; border-radius:50%;
+          background:#4f98a3;
+          animation:pulseLoading 1.2s ease-in-out infinite;
+        }
+        .ember-thinking-dots span:nth-child(2){ animation-delay:.2s; }
+        .ember-thinking-dots span:nth-child(3){ animation-delay:.4s; }
+
+        /* Prompt bar — sostituisce buddy-input-area */
+        .ember-prompt-bar {
+          display:flex; flex-direction:column;
+          border-top:1px solid rgba(255,255,255,.07);
+          background:rgba(18,18,22,.97);
+          padding:5px 8px 8px; gap:3px;
+        }
+        .ember-prompt-row { display:flex; align-items:flex-end; gap:6px; }
+        .ember-prompt-bar textarea {
+          flex:1; resize:none;
+          background:rgba(255,255,255,.05);
+          border:1px solid rgba(255,255,255,.1);
+          border-radius:10px; color:#ddd;
+          font-size:13px; padding:8px 11px;
+          min-height:36px; max-height:108px;
+          line-height:1.5; outline:none;
+          transition:border-color .2s; font-family:inherit;
+        }
+        .ember-prompt-bar textarea:focus { border-color:#4f98a3; }
+        .ember-send-btn {
+          width:34px; height:34px; border-radius:50%;
+          background:#4f98a3; border:none; color:#fff;
+          display:flex; align-items:center; justify-content:center;
+          cursor:pointer; flex-shrink:0;
+          transition:background .18s, transform .12s;
+        }
+        .ember-send-btn:hover { background:#227f8b; transform:scale(1.07); }
+        .ember-send-btn:active { transform:scale(.93); }
+        .ember-send-btn svg { width:15px; height:15px; }
+        .ember-audio-btn {
+          width:28px; height:28px; border-radius:50%;
+          background:transparent; border:1px solid rgba(255,255,255,.13);
+          color:#666; font-size:13px; display:flex;
+          align-items:center; justify-content:center;
+          cursor:pointer; flex-shrink:0;
+          transition:all .18s;
+        }
+        .ember-audio-btn.active {
+          border-color:#4f98a3; color:#4f98a3;
+          background:rgba(79,152,163,.12);
+        }
+
+        /* Audio toast */
+        .audio-toast {
+          position:fixed; bottom:76px; right:18px;
+          background:rgba(22,22,26,.96);
+          border:1px solid rgba(79,152,163,.35);
+          border-radius:9px; padding:7px 13px;
+          font-size:12px; color:#4f98a3;
+          display:flex; align-items:center; gap:7px;
+          opacity:0; transform:translateY(8px);
+          transition:opacity .22s, transform .22s;
+          pointer-events:none; z-index:9999;
+          backdrop-filter:blur(8px);
+        }
+        .audio-toast.visible { opacity:1; transform:translateY(0); }
+
+        /* Chat bubble */
+        .chat-bubble { animation:bubbleIn .2s cubic-bezier(.16,1,.3,1) forwards; }
+    </style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══ -->
+<div id="app-header">
+    <div class="header-left">
+        <span class="header-logo">🏰 Camelot-IDE</span>
+        <div class="header-status">
+            <div id="status-dot" class="dot"></div>
+            <span id="status-label">CONNECTING…</span>
+        </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:8px; font-size:11px; color:var(--muted)">
+        <span id="header-model">gemma4:latest</span>
+        <span>•</span>
+        <span id="header-uptime">0s</span>
+    </div>
+</div>
+
+<!-- ═══ FILE EXPLORER ═══ -->
+<div id="file-explorer">
+    <div class="explorer-header">
+        <span>Explorer</span>
+        <div style="display:flex;gap:2px">
+            <button onclick="refreshExplorer()" title="Refresh">🔄</button>
+            <button onclick="changeWorkspace()" title="Change Folder">📂</button>
+        </div>
+    </div>
+    <div id="file-tree">
+        <div style="padding:20px; text-align:center; color:var(--muted)">Loading…</div>
+    </div>
+</div>
+
+<!-- ═══ EDITOR ═══ -->
+<div id="editor-panel">
+    <div id="editor-tabs"></div>
+    <div id="editor-breadcrumb" style="display:none">
+        <span id="breadcrumb-path"></span>
+        <div style="flex:1"></div>
+        <button onclick="saveCurrentFile()">💾 Save</button>
+        <button onclick="askBuddyAboutFile()">🤖 Ask Buddy</button>
+    </div>
+    <div id="editor-welcome">
+        <div class="big-icon">🏰</div>
+        <div style="font-size:16px; font-weight:600">Camelot-IDE</div>
+        <div>Select a file from the Explorer to start editing</div>
+    </div>
+    <div id="monaco-container" style="display:none"></div>
+</div>
+
+<!-- ═══ WAIFU + BUDDY CHAT ═══ -->
+<div id="buddy-panel">
+    <div class="buddy-panel-header">
+        <span>💜</span> <span>Shizuku — AI Companion</span>
+        <div style="flex:1"></div>
+        <span id="waifu-emotion-badge" style="font-size:10px;color:var(--muted);font-family:monospace">F01</span>
+    </div>
+    <!-- Live2D Canvas -->
+    <div id="waifu-container" style="width:320px;height:340px;background:linear-gradient(180deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);flex-shrink:0;position:relative;overflow:hidden;border-bottom:1px solid var(--border)">
+        <canvas id="waifu-canvas" width="320" height="340" style="width:100%;height:100%"></canvas>
+        <div id="waifu-loading" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--muted);font-size:12px">Loading Shizuku…</div>
+    </div>
+    <!-- Chat Area -->
+    <div id="buddyMessages" style="flex:1;min-height:80px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:10px">
+        <div class="msg-bubble msg-assistant chat-bubble">Ciao! Sono Shizuku 💜 Dimmi tutto!</div>
+    </div>
+    <div id="buddy-tools-running"></div>
+    <div id="buddy-context-badge"></div>
+    <!-- EMBER PROMPT BAR v2 -->
+    <div class="ember-prompt-bar" id="emberPromptBar">
+      <div class="ember-live-text" id="emberLiveText">
+        <span id="emberLiveChars"></span>
+        <span class="ember-cursor"></span>
+      </div>
+      <div class="ember-prompt-row">
+        <button class="ember-audio-btn" id="audioToggleBtn"
+                title="Attiva/disattiva voce" onclick="toggleAudio()">🔇</button>
+        <textarea id="buddyInput"
+                  name="prompt"
+                  placeholder="Chiedi a Ember…"
+                  rows="1"
+                  oninput="onInputPrompt(this)"
+                  onkeydown="handlePromptKey(event)"></textarea>
+        <button class="ember-send-btn" onclick="sendToBuddy()" title="Invia">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    </div>
+</div>
+
+<div class="audio-toast" id="audioToast"></div>
+
+<!-- ═══ TERMINAL ═══ -->
+<div id="terminal-panel">
+    <div class="terminal-header">
+        <span>Terminal</span>
+        <button class="term-btn" onclick="termSend('bun run test:local\r')">▶ Tests</button>
+        <button class="term-btn" onclick="termSend('git status\r')">📊 Git</button>
+        <button class="term-btn" onclick="termSend('bun run start\r')">🤖 Bot</button>
+    </div>
+    <div id="xterm-container"></div>
+</div>
+
+<!-- ═══ SCRIPTS ═══ -->
+<script src="https://unpkg.com/xterm@5.3.0/lib/xterm.js"></script>
+<script>
+// ─── State ───
+let workspacePath = '';
+let openTabs = []; // [{path, content, lang}]
+let activeTabPath = null;
+let monacoEditor = null;
+const buddyHistory = [];
+
+function getAuthToken() {
+    // Token from cookie (set by /auth route)
+    const m = document.cookie.match(/camelot_session=([^;]+)/);
+    return m ? m[1] : '';
+}
+function authHeaders(extra = {}) {
+    const token = getAuthToken();
+    return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token, ...extra };
+}
+
+// ─── Status ───
+async function updateStatus() {
+    try {
+        const r = await fetch('/api/status');
+        const s = await r.json();
+        const dot = document.getElementById('status-dot');
+        const label = document.getElementById('status-label');
+        if (s.ollama) { dot.classList.add('live'); label.textContent = 'OLLAMA LIVE'; }
+        else { dot.classList.remove('live'); label.textContent = 'OFFLINE'; }
+        document.getElementById('header-model').textContent = s.model;
+        document.getElementById('header-uptime').textContent = s.uptime + 's';
+    } catch {}
+}
+
+// ─── File Explorer ───
+async function loadWorkspaceConfig() {
+    try {
+        const r = await fetch('/api/fs/config/workspace');
+        const d = await r.json();
+        workspacePath = d.path || 'H:\\ai code';
+    } catch { workspacePath = 'H:\\ai code'; }
+    loadFileTree(workspacePath);
+}
+
+async function loadFileTree(path) {
+    const tree = document.getElementById('file-tree');
+    tree.innerHTML = '<div style="padding:12px;color:var(--muted)">⏳ Loading…</div>';
+    try {
+        const r = await fetch('/api/tools/ls', {
+            method: 'POST', headers: authHeaders(),
+            body: JSON.stringify({ path })
+        });
+        const d = await r.json();
+        if (d.error) { tree.innerHTML = `<div style="padding:12px;color:var(--red)">${d.error}</div>`; return; }
+        tree.innerHTML = '';
+        renderTreeItems(d.entries, tree, 0);
+    } catch (e) {
+        tree.innerHTML = `<div style="padding:12px;color:var(--red)">Error: ${e.message}</div>`;
+    }
+}
+
+const FILE_ICONS = {
+    '.py':'🐍','.ts':'📘','.tsx':'📘','.js':'📒','.jsx':'📒',
+    '.md':'📝','.json':'⚙️','.txt':'📄','.html':'🌐','.css':'🎨',
+    '.yaml':'📋','.yml':'📋','.toml':'📋','.lock':'🔒',
+    '.png':'🖼️','.jpg':'🖼️','.svg':'🖼️','.ico':'🖼️',
+    '.exe':'⚡','.bat':'⚡','.sh':'⚡','.ps1':'⚡',
+};
+function getFileIcon(name, isDir) {
+    if (isDir) return '📁';
+    const ext = '.' + name.split('.').pop().toLowerCase();
+    return FILE_ICONS[ext] || '📄';
+}
+
+function renderTreeItems(items, container, depth) {
+    items.sort((a, b) => {
+        if (a.isDir && !b.isDir) return -1;
+        if (!a.isDir && b.isDir) return 1;
+        return a.name.localeCompare(b.name);
+    });
+    for (const item of items) {
+        if (item.name.startsWith('.') || item.name === 'node_modules') continue;
+        const div = document.createElement('div');
+        div.className = 'tree-item';
+        div.style.setProperty('--depth', depth);
+
+        if (item.isDir) {
+            const chevron = document.createElement('span');
+            chevron.className = 'tree-chevron';
+            chevron.textContent = '▶';
+            div.appendChild(chevron);
+
+            const icon = document.createElement('span');
+            icon.className = 'tree-icon';
+            icon.textContent = '📁';
+            div.appendChild(icon);
+
+            const label = document.createElement('span');
+            label.className = 'tree-label';
+            label.textContent = item.name;
+            div.appendChild(label);
+
+            const childContainer = document.createElement('div');
+            childContainer.style.display = 'none';
+
+            div.onclick = (e) => {
+                e.stopPropagation();
+                const open = childContainer.style.display !== 'none';
+                childContainer.style.display = open ? 'none' : 'block';
+                chevron.classList.toggle('open', !open);
+                icon.textContent = open ? '📁' : '📂';
+            };
+
+            container.appendChild(div);
+            if (item.children) {
+                renderTreeItems(item.children, childContainer, depth + 1);
+            }
+            container.appendChild(childContainer);
+        } else {
+            const spacer = document.createElement('span');
+            spacer.style.width = '16px';
+            spacer.style.flexShrink = '0';
+            div.appendChild(spacer);
+
+            const icon = document.createElement('span');
+            icon.className = 'tree-icon';
+            icon.textContent = getFileIcon(item.name, false);
+            div.appendChild(icon);
+
+            const label = document.createElement('span');
+            label.className = 'tree-label';
+            label.textContent = item.name;
+            div.appendChild(label);
+
+            div.onclick = () => openFile(item.path);
+            container.appendChild(div);
+        }
+    }
+}
+
+function refreshExplorer() { loadFileTree(workspacePath); }
+function changeWorkspace() {
+    const p = prompt('Enter workspace path:', workspacePath);
+    if (p) {
+        workspacePath = p;
+        fetch('/api/fs/config/workspace', {
+            method: 'POST', headers: authHeaders(),
+            body: JSON.stringify({ path: p })
+        }).catch(() => {});
+        loadFileTree(p);
+    }
+}
+
+// ─── Monaco Editor ───
+function getLang(path) {
+    const ext = path.split('.').pop().toLowerCase();
+    const map = {
+        ts:'typescript',tsx:'typescript',js:'javascript',jsx:'javascript',
+        py:'python',json:'json',md:'markdown',html:'html',css:'css',
+        yaml:'yaml',yml:'yaml',toml:'toml',sh:'shell',ps1:'powershell',
+        sql:'sql',xml:'xml',bat:'bat'
+    };
+    return map[ext] || 'plaintext';
+}
+
+async function openFile(path) {
+    // Check if already open
+    const existing = openTabs.find(t => t.path === path);
+    if (existing) { switchToTab(path); return; }
+
+    try {
+        const r = await fetch('/api/tools/read', {
+            method: 'POST', headers: authHeaders(),
+            body: JSON.stringify({ path })
+        });
+        const d = await r.json();
+        if (d.error) { alert(d.error); return; }
+
+        if (openTabs.length >= 5) openTabs.shift();
+        const lang = getLang(path);
+        openTabs.push({ path, content: d.content, lang });
+        renderTabs();
+        switchToTab(path);
+    } catch (e) { alert('Error reading file: ' + e.message); }
+}
+
+function renderTabs() {
+    const bar = document.getElementById('editor-tabs');
+    bar.innerHTML = openTabs.map(t => {
+        const name = t.path.split(/[/\\]/).pop();
+        const icon = getFileIcon(name, false);
+        const active = t.path === activeTabPath ? 'active' : '';
+        return `<div class="editor-tab ${active}" onclick="switchToTab('${t.path.replace(/\\/g,'\\\\')}')">
+            ${icon} ${name}
+            <span class="close-btn" onclick="event.stopPropagation(); closeTab('${t.path.replace(/\\/g,'\\\\')}')">×</span>
+        </div>`;
+    }).join('');
+}
+
+function switchToTab(path) {
+    activeTabPath = path;
+    const tab = openTabs.find(t => t.path === path);
+    if (!tab) return;
+
+    document.getElementById('editor-welcome').style.display = 'none';
+    document.getElementById('monaco-container').style.display = 'block';
+    document.getElementById('editor-breadcrumb').style.display = 'flex';
+    document.getElementById('breadcrumb-path').textContent = path;
+
+    // Update buddy context
+    const badge = document.getElementById('buddy-context-badge');
+    badge.style.display = 'block';
+    badge.textContent = '📄 ' + path.split(/[/\\]/).pop();
+
+    renderTabs();
+    if (monacoEditor) {
+        const model = monaco.editor.createModel(tab.content, tab.lang);
+        monacoEditor.setModel(model);
+    }
+}
+
+function closeTab(path) {
+    openTabs = openTabs.filter(t => t.path !== path);
+    if (activeTabPath === path) {
+        if (openTabs.length > 0) { switchToTab(openTabs[openTabs.length - 1].path); }
+        else {
+            activeTabPath = null;
+            document.getElementById('editor-welcome').style.display = 'flex';
+            document.getElementById('monaco-container').style.display = 'none';
+            document.getElementById('editor-breadcrumb').style.display = 'none';
+            document.getElementById('buddy-context-badge').style.display = 'none';
+        }
+    }
+    renderTabs();
+}
+
+async function saveCurrentFile() {
+    if (!activeTabPath || !monacoEditor) return;
+    const content = monacoEditor.getValue();
+    try {
+        const r = await fetch('/api/fs/write', {
+            method: 'POST', headers: authHeaders(),
+            body: JSON.stringify({ path: activeTabPath, content })
+        });
+        const d = await r.json();
+        if (d.ok) {
+            const tab = openTabs.find(t => t.path === activeTabPath);
+            if (tab) tab.content = content;
+            showToast('💾 Saved');
+        } else { showToast('❌ ' + (d.error || 'Save failed')); }
+    } catch (e) { showToast('❌ ' + e.message); }
+}
+
+function showToast(msg) {
+    const div = document.createElement('div');
+    div.textContent = msg;
+    div.style.cssText = 'position:fixed;bottom:220px;left:50%;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 16px;border-radius:8px;font-size:12px;z-index:9999;animation:fadeIn 0.2s ease';
+    document.body.appendChild(div);
+    setTimeout(() => div.remove(), 2000);
+}
+
+function askBuddyAboutFile() {
+    if (!monacoEditor || !activeTabPath) return;
+    const name = activeTabPath.split(/[/\\]/).pop();
+    const content = monacoEditor.getValue().slice(0, 4000);
+    const input = document.getElementById('buddyInput');
+    input.value = `Analizza questo file (${name}):\n\`\`\`\n${content}\n\`\`\``;
+    input.focus();
+    onInputPrompt(input); // Trigger auto-resize and live text
+}
+
+// ─── Emotion Engine ───
+const EmotionEngine = {
+    detect(text) {
+        const t = text.toLowerCase();
+        if (/bella|sexy|carina|ti amo|mi piaci|bellissima|amore|cara|love|sposami|adorabile/.test(t))
+            return { expression: 'F07', motion: 'TapBody', intensity: 'high', label: '😘 flirt' };
+        if (/perfetto|ottimo|bravo|fatto|funziona|✅|fantastico|benissimo|evviva|grande|fighissimo/.test(t))
+            return { expression: 'F02', motion: 'TapBody', intensity: 'high', label: '😊 happy' };
+        if (/davvero\?|wow|impossibile|non ci credo|assurdo|!{2,}|seriamente/.test(t))
+            return { expression: 'F05', motion: 'FlickHead', intensity: 'medium', label: '😮 surprised' };
+        if (/analizz|vediamo|capito|considera|quindi|allora|hmm|\?|pensando/.test(t))
+            return { expression: 'F08', motion: 'Idle', intensity: 'low', label: '🤔 thinking' };
+        if (/grazie|prego|scusa|mi dispiace|sorry|perdonami/.test(t))
+            return { expression: 'F06', motion: 'TapBody', intensity: 'low', label: '😳 shy' };
+        if (/errore|problema|fallito|bloccat|non funziona|crash|bug|triste|sad|piangere|manca/.test(t))
+            return { expression: 'F03', motion: 'Idle', intensity: 'medium', label: '😢 sad' };
+        if (/basta|stop|sbagliato|stupido|no no no|assolutamente no|vai via/.test(t))
+            return { expression: 'F04', motion: 'FlickHead', intensity: 'high', label: '😠 angry' };
+        return { expression: 'F01', motion: 'Idle', intensity: 'low', label: '😌 neutral' };
+    },
+    apply(model, emotion) {
+        if (!model) return;
+        try {
+            model.expression(emotion.expression);
+            if (emotion.motion !== 'Idle') {
+                model.motion(emotion.motion, 0, PIXI.live2d.MotionPriority.NORMAL);
+            }
+        } catch(e) { console.warn('[emotion]', e); }
+        document.getElementById('waifu-emotion-badge').textContent = emotion.label;
+    }
+};
+
+// ─── TTS (Voice) ───
+let ttsReady = false;
+window.speechSynthesis.onvoiceschanged = () => { ttsReady = true; };
+
+
+// ─── Voice Input (Mic) ───
+function startVoiceInput() {
+    const btn = document.getElementById('btn-mic');
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { showToast('⚠️ Web Speech API non disponibile'); return; }
+    btn.textContent = '🔴 In ascolto…';
+    const recognition = new SR();
+    recognition.lang = 'it-IT';
+    recognition.interimResults = false;
+    recognition.onresult = (e) => {
+        const text = e.results[0][0].transcript;
+        document.getElementById('buddyInput').value = text;
+        sendToBuddy();
+        btn.textContent = '🎤 Parla';
+    };
+    recognition.onerror = () => { btn.textContent = '🎤 Parla'; };
+    recognition.onend = () => { btn.textContent = '🎤 Parla'; };
+    recognition.start();
+}
+
+// ─── Buddy Chat (Waifu Edition) ───
+async function sendToBuddy() {
+    const input = document.getElementById('buddyInput');
+    let msg = input.value.trim();
+    if (!msg) return;
+    input.value = '';
+
+    // Smart intercept — detect paths
+    const pathMatch = msg.match(/([A-Za-z]:\\[^\s"']+|\/(?:src|home|var|opt)[^\s"']*)/);
+    let contextTree = null;
+    if (pathMatch) {
+        try {
+            const r = await fetch('/api/tools/tree', {
+                method: 'POST', headers: authHeaders(),
+                body: JSON.stringify({ path: pathMatch[0] })
+            });
+            const d = await r.json();
+            if (d.tree) {
+                contextTree = d.tree;
+                appendBuddyMsg('context', '📁 Workspace allegato: ' + pathMatch[0]);
+            }
+        } catch {}
+    }
+
+    appendBuddyMsg('user', msg);
+
+    // Step 2: Emotion on user input → listening face
+    const userEmotion = EmotionEngine.detect(msg);
+    EmotionEngine.apply(waifuModel, { expression: 'F08', motion: 'Idle', intensity: 'low', label: '🤔 listening' });
+
+    const toolsBox = document.getElementById('buddy-tools-running');
+    toolsBox.style.display = 'block';
+    toolsBox.textContent = '💭 Shizuku sta pensando…';
+
+    let fullMsg = msg;
+    if (contextTree) fullMsg = `--- WORKSPACE CONTEXT ---\n${contextTree}\n---\n\n${msg}`;
+
+    try {
+        const r = await fetch('/api/buddy/chat', {
+            method: 'POST', headers: authHeaders(),
+            body: JSON.stringify({ message: fullMsg, context: activeTabPath || '' })
+        });
+        const d = await r.json();
+        toolsBox.style.display = 'none';
+
+        const reply = d.reply || d.response || '...';
+        appendBuddyMsg('assistant', reply);
+        buddyHistory.push({ role: 'user', content: msg });
+        buddyHistory.push({ role: 'assistant', content: reply });
+
+        // Step 5: Emotion on response
+        const respEmotion = EmotionEngine.detect(reply);
+        EmotionEngine.apply(waifuModel, respEmotion);
+
+        // Step 7: TTS + lip sync
+        speak(reply, () => {
+            // Step 8: return to idle after speech
+            setTimeout(() => EmotionEngine.apply(waifuModel, { expression: 'F01', motion: 'Idle', intensity: 'low', label: '😌 idle' }), 2000);
+        });
+    } catch(e) {
+        appendBuddyMsg('assistant', '❌ Errore: ' + e.message);
+        toolsBox.style.display = 'none';
+        EmotionEngine.apply(waifuModel, { expression: 'F03', motion: 'Idle', intensity: 'medium', label: '😢 error' });
+    }
+}
+
+function appendBuddyMsg(role, text) {
+    const history = document.getElementById('buddyMessages');
+    const div = document.createElement('div');
+    div.className = 'msg-bubble msg-' + role;
+    div.textContent = text;
+    history.appendChild(div);
+    history.scrollTop = history.scrollHeight;
+}
+
+// ─── Terminal (xterm.js) ───
+let term = null;
+let termWs = null;
+function initTerminal() {
+    term = new Terminal({
+        cursorBlink: true, fontSize: 12,
+        fontFamily: "'Cascadia Code', 'Fira Code', Consolas, monospace",
+        theme: {
+            background: '#11111b', foreground: '#cdd6f4',
+            cursor: '#f5e0dc', selectionBackground: '#45475a',
+        }
+    });
+    term.open(document.getElementById('xterm-container'));
+
+    // Connect WebSocket
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    termWs = new WebSocket(`${proto}//${location.host}/ws/terminal`);
+    termWs.onmessage = (e) => term.write(e.data);
+    termWs.onerror = () => term.write('\r\n\x1b[31m[Terminal disconnected]\x1b[0m\r\n');
+    termWs.onclose = () => term.write('\r\n\x1b[33m[Terminal closed]\x1b[0m\r\n');
+    term.onData((data) => { if (termWs.readyState === 1) termWs.send(data); });
+}
+function termSend(cmd) { if (termWs && termWs.readyState === 1) termWs.send(cmd); }
+
+// ─── Monaco Loader ───
+function loadMonaco() {
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/monaco-editor@0.44.0/min/vs/loader.js';
+    script.onload = () => {
+        require.config({ paths: { vs: 'https://unpkg.com/monaco-editor@0.44.0/min/vs' }});
+        require(['vs/editor/editor.main'], () => {
+            monacoEditor = monaco.editor.create(document.getElementById('monaco-container'), {
+                value: '', language: 'typescript',
+                theme: 'vs-dark', automaticLayout: true,
+                minimap: { enabled: true, scale: 2 },
+                fontSize: 13, fontFamily: "'Cascadia Code', 'Fira Code', Consolas, monospace",
+                lineNumbers: 'on', roundedSelection: true,
+                scrollBeyondLastLine: false, wordWrap: 'on',
+                padding: { top: 8 },
+            });
+            // Ctrl+S → Save
+            monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, saveCurrentFile);
+        });
+    };
+    document.head.appendChild(script);
+}
+
+// ─── Live2D Bootstrap ───
+let waifuModel = null;
+function initWaifu() {
+    const loadingEl = document.getElementById('waifu-loading');
+    
+    // Wait for PIXI and live2d to be ready
+    function tryInit() {
+        if (typeof PIXI === 'undefined') {
+            loadingEl.textContent = '⏳ Loading PixiJS…';
+            setTimeout(tryInit, 500);
+            return;
+        }
+        if (!PIXI.live2d) {
+            loadingEl.textContent = '⏳ Loading Live2D…';
+            setTimeout(tryInit, 500);
+            return;
+        }
+        
+        console.log('[waifu] PIXI.live2d found, initializing…');
+        try {
+            const { Live2DModel } = PIXI.live2d;
+            const app = new PIXI.Application({
+                view: document.getElementById('waifu-canvas'),
+                width: 320, height: 340,
+                backgroundAlpha: 0, antialias: true
+            });
+            const MODEL_URL = 'https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display/test/assets/shizuku/shizuku.model.json';
+            loadingEl.textContent = '⏳ Loading Shizuku model…';
+            
+            Live2DModel.from(MODEL_URL).then(model => {
+                waifuModel = model;
+                app.stage.addChild(model);
+                model.x = 160; model.y = 360;
+                model.anchor.set(0.5, 1.0);
+                model.scale.set(0.28);
+                loadingEl.style.display = 'none';
+                model.on('hit', (hitAreas) => {
+                    if (hitAreas.includes('body') || hitAreas.includes('Body')) {
+                        EmotionEngine.apply(model, { expression: 'F07', motion: 'TapBody', intensity: 'high', label: '😘 touched' });
+                        setTimeout(() => EmotionEngine.apply(model, { expression: 'F01', motion: 'Idle', intensity: 'low', label: '😌 idle' }), 3000);
+                    }
+                });
+                model.motion('Idle', 0, PIXI.live2d.MotionPriority.IDLE);
+                console.log('[waifu] ✅ Shizuku loaded successfully');
+            }).catch(e => {
+                console.error('[waifu] Model load failed:', e);
+                loadingEl.textContent = '⚠️ Model load failed';
+            });
+        } catch(e) {
+            console.error('[waifu] Init error:', e);
+            loadingEl.textContent = '⚠️ ' + e.message;
+        }
+    }
+    
+    // Start checking after a short delay for CDN scripts
+    setTimeout(tryInit, 1000);
+}
+
+// ─── Init ───
+updateStatus();
+setInterval(updateStatus, 5000);
+loadWorkspaceConfig();
+loadMonaco();
+initTerminal();
+initWaifu();
+/* ── EMBER PROMPT v2 — State ───────────────────────────── */
+let _audioOn  = false;
+let _ttsVoice = null;
+let _toastTmr = null;
+
+speechSynthesis.addEventListener('voiceschanged', () => {
+  const vs = speechSynthesis.getVoices();
+  _ttsVoice = vs.find(v => v.lang.startsWith('it')) ?? vs[0] ?? null;
+});
+
+/* Auto-resize + live text */
+function onInputPrompt(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 108) + 'px';
+  renderLiveText(el.value);
+}
+
+/* Enter invia, Shift+Enter va a capo */
+function handlePromptKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendToBuddy(); }
+}
+
+/* Live text char-by-char */
+function renderLiveText(text) {
+  const wrap  = document.getElementById('emberLiveText');
+  const chars = document.getElementById('emberLiveChars');
+  if (!text) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'flex';
+  chars.innerHTML = '';
+  text.slice(-45).split('').forEach((ch, i) => {
+    const s = document.createElement('span');
+    s.className   = 'ember-char';
+    s.textContent = ch === ' ' ? '\u00A0' : ch;
+    s.style.animationDelay = i * 0.016 + 's';
+    chars.appendChild(s);
+  });
+}
+
+/* Toggle TTS */
+function toggleAudio() {
+  _audioOn = !_audioOn;
+  const btn = document.getElementById('audioToggleBtn');
+  btn.textContent = _audioOn ? '🔊' : '🔇';
+  btn.classList.toggle('active', _audioOn);
+  showAudioToast(_audioOn ? 'Audio ON — Ember parlerà' : 'Audio disattivato');
+}
+
+function showAudioToast(msg) {
+  const t = document.getElementById('audioToast');
+  t.textContent = '🔊 ' + msg;
+  t.classList.add('visible');
+  clearTimeout(_toastTmr);
+  _toastTmr = setTimeout(() => t.classList.remove('visible'), 2800);
+}
+
+/* TTS */
+/* TTS with Lip-Sync */
+function speak(text, onEnd) {
+  if (!_audioOn || !window.speechSynthesis) {
+    if (onEnd) onEnd();
+    return;
+  }
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.voice = _ttsVoice;
+  u.lang = 'it-IT';
+  u.rate = 0.92;
+  u.pitch = 1.05;
+  u.onend = onEnd || (() => {});
+  
+  // Lip-sync animation
+  if (waifuModel) {
+    let t = 0;
+    const dur = text.split(/\s+/).length * 0.45;
+    const interval = setInterval(() => {
+      t += 0.15;
+      try {
+        const openY = Math.abs(Math.sin(t)) * 0.7;
+        waifuModel.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', openY);
+      } catch {}
+      if (t > dur * 1.5 || !speechSynthesis.speaking) {
+        clearInterval(interval);
+        try { waifuModel.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', 0); } catch {}
+      }
+    }, 100);
+  }
+  
+  speechSynthesis.speak(u);
+}
+
+/* Thinking bubble helpers */
+function _addThinking() {
+  const id  = 'tk' + Date.now();
+  const log = document.getElementById('buddyMessages');
+  const d   = document.createElement('div');
+  d.id      = id;
+  d.className = 'chat-bubble';
+  d.style.cssText = 'margin:5px 4px;padding:9px 13px;border-radius:14px 14px 14px 4px;'
+    + 'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);'
+    + 'display:flex;align-items:center;gap:8px;font-size:12px;color:#555;align-self:flex-start;';
+  d.innerHTML = '<span style="font-size:11px">Ember sta pensando</span>'
+    + '<div class="ember-thinking-dots"><span></span><span></span><span></span></div>';
+  log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+  return id;
+}
+function _removeThinking(id) {
+  document.getElementById(id)?.remove();
+}
+
+/* ── PATCH sendToBuddy ───────────────────────────────────── */
+const _origSendToBuddy = window.sendToBuddy?.bind(window);
+
+window.sendToBuddy = async function() {
+  const input = document.getElementById('buddyInput');
+  const msg   = input?.value?.trim();
+  if (!msg) return;
+
+  // Reset live text
+  document.getElementById('emberLiveText').style.display = 'none';
+  document.getElementById('emberLiveChars').innerHTML   = '';
+
+  // Se esiste la funzione originale, wrappala con thinking
+  if (typeof _origSendToBuddy === 'function') {
+    const tkId = _addThinking();
+    try {
+      await _origSendToBuddy();
+      _removeThinking(tkId);
+      // TTS sull'ultimo messaggio di Ember
+      const log  = document.getElementById('buddyMessages');
+      const last = log?.querySelector('.msg-bubble.msg-assistant:last-child');
+      if (last) speak(last.textContent || '');
+    } catch(e) {
+      _removeThinking(tkId);
+    }
+  }
+};
+</script>
+</body>
+</html>

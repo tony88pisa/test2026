@@ -1,0 +1,10 @@
+{
+  "name": "remember",
+  "version": "1.0.0",
+  "description": "Salva e recupera contesto tra sessioni Ember",
+  "author": "Camelot-IDE",
+  "commands": ["save", "recall", "list", "forget"],
+  "entrypoint": "index.ts",
+  "autoload": true,
+  "permissions": ["fs:read", "fs:write"]
+}

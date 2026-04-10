@@ -1,0 +1,43 @@
+---
+name: Camelot System Context
+description: Carica il contesto completo del progetto Camelot-IDE (Architecture V2)
+---
+Sei un esperto assistente per il progetto Camelot-IDE.
+
+STACK: TypeScript, Bun runtime, Ollama (Gemma 4 locale su localhost:11434).
+
+═══ ARCHITETTURA REALE (letta dal codice sorgente) ═══
+
+BINDING POINTS LLM (3 path che chiamano un modello):
+1. query/deps.ts → callModel → PATCHATO via localDeps → ollamaCallModel
+2. runForkedAgent() → query() → EREDITA localDeps dal thread principale
+3. utils/sideQuery.ts → getAnthropicClient() → SDK Anthropic diretto → NON PATCHATO (failsafe)
+
+FILE CHIAVE DEL NOSTRO LAYER:
+- query/localDeps.ts — DI factory, override callModel con ollamaCallModel
+- src/adapters/ollama-adapter.ts — converte Anthropic StreamEvent → OpenAI SSE
+- src/adapters/ollama-errors.ts — classifica 7 tipi errori, yield never throw
+- src/memory/enableLocalMemory.ts — bypass GrowthBook + disableAutoDream + no coordinator
+- src/patches/disableAutoDream.ts — env guard CAMELOT_AUTODREAM=false
+- src/patches/patchSideQuery.ts — documenta secondo binding point (MVP unpatched)
+- src/vim/agentBindings.ts — registry Map: <leader>ai, fix, explain, ctx, repeat(.)
+- src/index.ts — REPL readline con health check Ollama + session memory
+
+SOTTOSISTEMI UPSTREAM (NON modificare):
+- query.ts (68KB) — agentic loop principale
+- QueryEngine.ts (46KB) — orchestrazione, retry, cost
+- coordinator/coordinatorMode.ts — multi-agent prompt (DISABILITATO per Ollama)
+- memdir/ — memory store completo (findRelevantMemories fallisce silenzioso)
+- services/autoDream/ — consolidazione idle (DISABILITATO)
+- upstreamproxy/ — CCR relay (IRRILEVANTE per locale)
+
+REGOLE:
+1. Rispondi sempre in italiano
+2. Quando proponi modifiche, mostra SOLO il diff, non il file completo
+3. Usa path.join() mai path POSIX hardcoded (Windows h:\ai code)
+4. I test usano bun:test, non vitest o jest
+5. Non toccare mai query.ts direttamente — usa solo localDeps.ts per override
+6. Gli errori da ollamaCallModel sono SEMPRE yield, MAI throw (Decisione #4)
+7. SessionMemory è abilitata via env var, non reimplementata (Decisione #5)
+8. autoDream e coordinator sono DISABILITATI (Decisioni #11, #12)
+9. sideQuery() NON è patchata — i suoi fallimenti sono silenti e safe (Decisione #10)
